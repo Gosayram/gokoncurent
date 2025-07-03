@@ -45,6 +45,16 @@ func main() {
         *value += 1
     })
     
+    // RWArcMutex[T] - Read-write mutex
+    rwCounter := gokoncurent.NewRWArcMutex(0)
+    rwCounter.WithRLock(func(value *int) { fmt.Println(*value) })
+    rwCounter.WithLock(func(value *int) { *value += 1 })
+    
+    // CondVar - Conditional variables
+    cv := gokoncurent.NewCondVar()
+    go func() { cv.Wait(); fmt.Println("Signaled!") }()
+    cv.Signal()
+    
     // OnceCell[T] - Lazy initialization
     cell := gokoncurent.NewOnceCell[string]()
     cell.Set("initialized once")
@@ -68,17 +78,28 @@ GoKoncurent provides safe concurrency primitives organized in phases:
 - Access only through `WithLock(func(*T))` to prevent deadlocks
 - Built on Arc[T] for safe sharing between goroutines
 
-### 📦 Phase 3: OnceCell[T] - Lazy Initialization
+### 📦 Phase 3: RWArcMutex[T] - Read-Write Mutex
+- Thread-safe read-write mutex for shared mutable state
+- `WithRLock(func(*T))` for read access, `WithLock(func(*T))` for write access
+- Optimized for scenarios with more reads than writes
+
+### 📦 Phase 4: CondVar - Conditional Variables
+- Conditional variables for goroutine coordination
+- Similar to `sync.Cond` but with atomic reference counting
+- Support for context cancellation and timeouts
+- Convenience functions `Notify()` and `NotifyBroadcast()`
+
+### 📦 Phase 5: OnceCell[T] - Lazy Initialization
 - Rust-like OnceCell/Lazy equivalent
 - Uses `sync.Once` and `atomic.Pointer[T]` from Go 1.24
 - `Set(value T)` and `Get() (T, bool)` methods
 
-### 📦 Phase 4: SafeMap[K, V] - Concurrent Map Operations
+### 📦 Phase 6: SafeMap[K, V] - Concurrent Map Operations
 - Race-free map operations with `sync.RWMutex`
 - Utilizes `maps.Clone` from Go 1.24
 - Snapshot and iteration support without data races
 
-### 📦 Phase 5: TaskPool & Future[T] - Async Task Management
+### 📦 Phase 7: TaskPool & Future[T] - Async Task Management
 - Simplified API for managing N goroutines
 - `TaskPool.Run(ctx, func())` with context control
 - `Future[T]` for async result handling

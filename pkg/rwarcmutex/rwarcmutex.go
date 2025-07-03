@@ -1,6 +1,7 @@
 // Package rwarcmutex provides a thread-safe reference-counted read-write mutex for shared mutable state.
 //
-// RWArcMutex[T] allows multiple readers or one writer, with atomic reference counting for safe sharing between goroutines.
+// RWArcMutex[T] allows multiple readers or one writer, with atomic reference counting
+// for safe sharing between goroutines.
 //
 // Example usage:
 //

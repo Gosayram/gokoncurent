@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed unused constant `numOperations` in arcmutex tests
 - Added proper package comments for all packages
 - Fixed all linting issues (gochecknoinits, gocritic, mnd, revive, unused)
+- Fixed possible deadlock in CondVar.WaitWithContext and LockUnlock tests (no recursive locking, correct context handling)
+- Fixed possible negative refCount in CondVar.Drop (now atomic and never goes below zero)
+- Optimized CondVar stress and concurrent tests for speed and reliability
 
 ### Changed
 - Cleaned up project structure by removing unused empty directories (docs/, internal/, testdata/)
@@ -31,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - RWArcMutex[T]: Thread-safe read-write mutex for shared mutable state with atomic reference counting
+- CondVar: Conditional variables for goroutine coordination with atomic reference counting
+  - Support for context cancellation and timeouts
+  - Convenience functions `Notify()` and `NotifyBroadcast()`
+  - Similar to `sync.Cond` but with Arc semantics
 - Comprehensive Makefile with targets for:
   - Building and testing
   - Code quality checks (lint, staticcheck, security scan)

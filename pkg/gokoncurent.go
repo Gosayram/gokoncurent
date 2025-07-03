@@ -10,6 +10,7 @@
 //   - Arc[T]: Atomic reference counting for shared ownership
 //   - ArcMutex[T]: Safe shared mutable state with controlled access
 //   - RWArcMutex[T]: Thread-safe read-write mutex for shared mutable state
+//   - CondVar: Conditional variables for goroutine coordination
 //   - OnceCell[T]: Thread-safe lazy initialization
 //   - SafeMap[K,V]: Concurrent map operations without data races
 //   - TaskPool & Future[T]: Structured async task management
@@ -34,6 +35,11 @@
 //	rwCounter.WithRLock(func(value *int) { fmt.Println(*value) })
 //	rwCounter.WithLock(func(value *int) { *value += 1 })
 //
+//	// CondVar - Conditional variables for coordination
+//	cv := gokoncurent.NewCondVar()
+//	go func() { cv.Wait(); fmt.Println("Signaled!") }()
+//	cv.Signal()
+//
 //	// OnceCell[T] - Lazy initialization
 //	cell := gokoncurent.NewOnceCell[string]()
 //	cell.Set("initialized once")
@@ -51,6 +57,7 @@ import (
 
 	"github.com/Gosayram/gokoncurent/pkg/arc"
 	"github.com/Gosayram/gokoncurent/pkg/arcmutex"
+	"github.com/Gosayram/gokoncurent/pkg/condvar"
 	"github.com/Gosayram/gokoncurent/pkg/oncecell"
 	"github.com/Gosayram/gokoncurent/pkg/rwarcmutex"
 )
@@ -76,6 +83,11 @@ type RWArcMutex[T any] struct {
 	*rwarcmutex.RWArcMutex[T]
 }
 
+// CondVar re-exports the CondVar type from the condvar package for convenience.
+type CondVar struct {
+	*condvar.CondVar
+}
+
 // OnceCell re-exports the OnceCell[T] type from the oncecell package for convenience.
 type OnceCell[T any] struct {
 	*oncecell.OnceCell[T]
@@ -94,6 +106,11 @@ func NewArcMutex[T any](value T) *ArcMutex[T] {
 // NewRWArcMutex creates a new RWArcMutex[T] with the given value.
 func NewRWArcMutex[T any](value T) *RWArcMutex[T] {
 	return &RWArcMutex[T]{RWArcMutex: rwarcmutex.NewRWArcMutex(value)}
+}
+
+// NewCondVar creates a new CondVar for goroutine coordination.
+func NewCondVar() *CondVar {
+	return &CondVar{CondVar: condvar.NewCondVar()}
 }
 
 // NewOnceCell creates a new OnceCell[T] for lazy initialization.

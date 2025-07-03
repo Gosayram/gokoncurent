@@ -1,8 +1,11 @@
 package gokoncurent
 
 import (
+	"context"
+	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -118,6 +121,78 @@ func TestRWArcMutex(t *testing.T) {
 	rw.Drop()
 	clone.Drop()
 	require.Equal(t, int64(0), rw.RefCount())
+}
+
+// TestCondVar tests the CondVar functionality
+func TestCondVar(t *testing.T) {
+	// Test basic creation
+	cv := NewCondVar()
+	require.NotNil(t, cv)
+	require.Equal(t, int64(1), cv.RefCount())
+
+	// Test cloning
+	clone := cv.Clone()
+	require.Equal(t, int64(2), cv.RefCount())
+
+	// Test basic signal/wait
+	var result string
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		cv.Wait()
+		result = "signaled"
+	}()
+
+	time.Sleep(10 * time.Millisecond)
+	cv.Signal()
+	wg.Wait()
+	require.Equal(t, "signaled", result)
+
+	// Test broadcast
+	var results []string
+	var mu sync.Mutex
+
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			cv.Wait()
+			mu.Lock()
+			results = append(results, fmt.Sprintf("worker-%d", id))
+			mu.Unlock()
+		}(i)
+	}
+
+	time.Sleep(10 * time.Millisecond)
+	cv.Broadcast()
+	wg.Wait()
+	require.Len(t, results, 3)
+
+	// Test context cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+	var contextResult bool
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		contextResult = cv.WaitWithContext(ctx)
+	}()
+
+	time.Sleep(10 * time.Millisecond)
+	cancel()
+	wg.Wait()
+	require.False(t, contextResult)
+
+	// Test timeout
+	timeoutResult := cv.WaitWithTimeout(50 * time.Millisecond)
+	require.False(t, timeoutResult)
+
+	// Clean up
+	cv.Drop()
+	clone.Drop()
+	require.Equal(t, int64(0), cv.RefCount())
 }
 
 // Helper function to check if a string contains a substring

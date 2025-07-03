@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed possible deadlock in CondVar.WaitWithContext and LockUnlock tests (no recursive locking, correct context handling)
 - Fixed possible negative refCount in CondVar.Drop (now atomic and never goes below zero)
 - Optimized CondVar stress and concurrent tests for speed and reliability
+- Enhanced errcheck configuration with comprehensive exclusions for sync operations, time functions, and atomic operations
 
 ### Changed
 - Cleaned up project structure by removing unused empty directories (docs/, internal/, testdata/)

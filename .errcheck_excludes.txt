@@ -5,7 +5,7 @@
 (*os.File).Close
 os.RemoveAll
 
-# Printf family functions
+# Printf family functions - extensively used in examples and tests
 fmt.Printf
 fmt.Fprintf
 fmt.Sprintf
@@ -19,3 +19,38 @@ io.Copy(os.Stderr)
 (*bytes.Buffer).WriteString
 (*strings.Builder).Write
 (*strings.Builder).WriteString
+
+# Sync operations that don't return errors
+sync.Mutex.Lock
+sync.Mutex.Unlock
+sync.RWMutex.Lock
+sync.RWMutex.Unlock
+sync.RWMutex.RLock
+sync.RWMutex.RUnlock
+sync.WaitGroup.Add
+sync.WaitGroup.Done
+sync.WaitGroup.Wait
+sync.Once.Do
+sync.Cond.Wait
+sync.Cond.Signal
+sync.Cond.Broadcast
+
+# Time operations that don't return errors
+time.Sleep
+time.After
+time.NewTimer
+time.NewTicker
+
+# Atomic operations that don't return errors
+sync/atomic.(*Int64).Add
+sync/atomic.(*Int64).Store
+sync/atomic.(*Int64).Load
+sync/atomic.(*Int64).CompareAndSwap
+sync/atomic.(*Bool).Store
+sync/atomic.(*Bool).Load
+sync/atomic.(*Pointer).Store
+sync/atomic.(*Pointer).Load
+sync/atomic.(*Pointer).CompareAndSwap
+
+# Panic calls in our code (intentional for invalid input)
+panic

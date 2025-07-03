@@ -1,0 +1,139 @@
+// Package gokoncurent provides safe and structured concurrency primitives for Go,
+// inspired by Rust's ownership and sync model.
+//
+// This library is designed to work with Go 1.24 and later versions,
+// taking advantage of features like atomic.Pointer[T], maps.Clone, and enhanced
+// compile-time error checking to provide memory-safe concurrency patterns.
+//
+// The library provides several core primitives:
+//
+//   - Arc[T]: Atomic reference counting for shared ownership
+//   - ArcMutex[T]: Safe shared mutable state with controlled access
+//   - OnceCell[T]: Thread-safe lazy initialization
+//   - SafeMap[K,V]: Concurrent map operations without data races
+//   - TaskPool & Future[T]: Structured async task management
+//
+// Example usage:
+//
+//	import "github.com/Gosayram/gokoncurent"
+//
+//	// Arc[T] - Atomic Reference Counting
+//	data := gokoncurent.NewArc("Hello, World!")
+//	clone := data.Clone()
+//	fmt.Println(*data.Get()) // "Hello, World!"
+//
+//	// ArcMutex[T] - Safe shared mutable state
+//	counter := gokoncurent.NewArcMutex(0)
+//	counter.WithLock(func(value *int) {
+//	    *value += 1
+//	})
+//
+//	// OnceCell[T] - Lazy initialization
+//	cell := gokoncurent.NewOnceCell[string]()
+//	cell.Set("initialized once")
+//	value, ok := cell.Get()
+//	fmt.Println(value, ok) // "initialized once", true
+//
+// For more examples, see the examples/ directory.
+package gokoncurent
+
+import (
+	"fmt"
+	"runtime"
+	"runtime/debug"
+	"strings"
+
+	"github.com/Gosayram/gokoncurent/pkg/arc"
+	"github.com/Gosayram/gokoncurent/pkg/arcmutex"
+	"github.com/Gosayram/gokoncurent/pkg/oncecell"
+)
+
+// Version information
+const (
+	Version   = "0.1.0"
+	BuildTime = "2025-01-04T00:00:00Z"
+)
+
+// Arc re-exports the Arc[T] type from the arc package for convenience.
+type Arc[T any] struct {
+	*arc.Arc[T]
+}
+
+// ArcMutex re-exports the ArcMutex[T] type from the arcmutex package for convenience.
+type ArcMutex[T any] struct {
+	*arcmutex.ArcMutex[T]
+}
+
+// OnceCell re-exports the OnceCell[T] type from the oncecell package for convenience.
+type OnceCell[T any] struct {
+	*oncecell.OnceCell[T]
+}
+
+// NewArc creates a new Arc[T] with the given value.
+func NewArc[T any](value T) *Arc[T] {
+	return &Arc[T]{Arc: arc.NewArc(value)}
+}
+
+// NewArcMutex creates a new ArcMutex[T] with the given value.
+func NewArcMutex[T any](value T) *ArcMutex[T] {
+	return &ArcMutex[T]{ArcMutex: arcmutex.NewArcMutex(value)}
+}
+
+// NewOnceCell creates a new OnceCell[T] for lazy initialization.
+func NewOnceCell[T any]() *OnceCell[T] {
+	return &OnceCell[T]{OnceCell: oncecell.NewOnceCell[T]()}
+}
+
+// Info contains information about the library
+type Info struct {
+	Version     string
+	GoVersion   string
+	BuildTime   string
+	GitCommit   string
+	GitBranch   string
+	GitModified bool
+}
+
+// GetInfo returns information about the library
+func GetInfo() *Info {
+	info := &Info{
+		Version:   Version,
+		GoVersion: runtime.Version(),
+		BuildTime: BuildTime,
+	}
+
+	// Try to get git information from build info
+	if buildInfo, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range buildInfo.Settings {
+			switch setting.Key {
+			case "vcs.revision":
+				info.GitCommit = setting.Value
+			case "vcs.modified":
+				info.GitModified = setting.Value == "true"
+			}
+		}
+	}
+
+	return info
+}
+
+// String returns a string representation of the Info
+func (i *Info) String() string {
+	var parts []string
+
+	parts = append(parts, fmt.Sprintf("Version: %s", i.Version), fmt.Sprintf("Go Version: %s", i.GoVersion))
+
+	if i.BuildTime != "" {
+		parts = append(parts, fmt.Sprintf("Build Time: %s", i.BuildTime))
+	}
+
+	if i.GitCommit != "" {
+		parts = append(parts, fmt.Sprintf("Git Commit: %s", i.GitCommit))
+	}
+
+	if i.GitModified {
+		parts = append(parts, "Git Modified: true")
+	}
+
+	return strings.Join(parts, "\n")
+}

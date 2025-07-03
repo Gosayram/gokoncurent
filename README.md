@@ -2,7 +2,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.24-00ADD8?logo=go&logoColor=white)](https://golang.org/)
 [![Go Report Card](https://goreportcard.com/badge/github.com/Gosayram/gokoncurent)](https://goreportcard.com/report/github.com/Gosayram/gokoncurent)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/github/license/Gosayram/gokoncurent?color=green)](https://opensource.org/license/apache-2-0)
 [![GoDoc](https://godoc.org/github.com/Gosayram/gokoncurent?status.svg)](https://godoc.org/github.com/Gosayram/gokoncurent)
 
 Safe and structured concurrency primitives for Go, inspired by Rust's ownership and sync model.

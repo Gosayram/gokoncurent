@@ -1,7 +1,10 @@
 package gokoncurent
 
 import (
+	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestVersion(t *testing.T) {
@@ -59,6 +62,62 @@ func TestInfoConcurrentAccess(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		<-done
 	}
+}
+
+// TestRWArcMutex tests the RWArcMutex functionality
+func TestRWArcMutex(t *testing.T) {
+	// Test basic creation and access
+	rw := NewRWArcMutex(42)
+	require.NotNil(t, rw)
+	require.Equal(t, int64(1), rw.RefCount())
+
+	// Test read access
+	rw.WithRLock(func(v *int) {
+		require.Equal(t, 42, *v)
+	})
+
+	// Test write access
+	rw.WithLock(func(v *int) {
+		*v = 100
+	})
+
+	// Verify write took effect
+	rw.WithRLock(func(v *int) {
+		require.Equal(t, 100, *v)
+	})
+
+	// Test cloning
+	clone := rw.Clone()
+	require.Equal(t, int64(2), rw.RefCount())
+
+	// Test concurrent access
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			rw.WithRLock(func(v *int) {
+				require.GreaterOrEqual(t, *v, 100)
+			})
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 10; i++ {
+			rw.WithLock(func(v *int) {
+				*v += 1
+			})
+		}
+	}()
+
+	wg.Wait()
+
+	// Clean up
+	rw.Drop()
+	clone.Drop()
+	require.Equal(t, int64(0), rw.RefCount())
 }
 
 // Helper function to check if a string contains a substring

@@ -1,4 +1,4 @@
-module oncecell_example
+module rwarcmutex_example
 
 go 1.24
 

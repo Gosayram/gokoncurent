@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added comprehensive Makefile with development tools and CI/CD support
 
 ### Added
+- RWArcMutex[T]: Thread-safe read-write mutex for shared mutable state with atomic reference counting
 - Comprehensive Makefile with targets for:
   - Building and testing
   - Code quality checks (lint, staticcheck, security scan)

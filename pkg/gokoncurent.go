@@ -9,6 +9,7 @@
 //
 //   - Arc[T]: Atomic reference counting for shared ownership
 //   - ArcMutex[T]: Safe shared mutable state with controlled access
+//   - RWArcMutex[T]: Thread-safe read-write mutex for shared mutable state
 //   - OnceCell[T]: Thread-safe lazy initialization
 //   - SafeMap[K,V]: Concurrent map operations without data races
 //   - TaskPool & Future[T]: Structured async task management
@@ -28,6 +29,11 @@
 //	    *value += 1
 //	})
 //
+//	// RWArcMutex[T] - Read-write mutex for shared state
+//	rwCounter := gokoncurent.NewRWArcMutex(0)
+//	rwCounter.WithRLock(func(value *int) { fmt.Println(*value) })
+//	rwCounter.WithLock(func(value *int) { *value += 1 })
+//
 //	// OnceCell[T] - Lazy initialization
 //	cell := gokoncurent.NewOnceCell[string]()
 //	cell.Set("initialized once")
@@ -46,6 +52,7 @@ import (
 	"github.com/Gosayram/gokoncurent/pkg/arc"
 	"github.com/Gosayram/gokoncurent/pkg/arcmutex"
 	"github.com/Gosayram/gokoncurent/pkg/oncecell"
+	"github.com/Gosayram/gokoncurent/pkg/rwarcmutex"
 )
 
 // Version information
@@ -64,6 +71,11 @@ type ArcMutex[T any] struct {
 	*arcmutex.ArcMutex[T]
 }
 
+// RWArcMutex re-exports the RWArcMutex[T] type from the rwarcmutex package for convenience.
+type RWArcMutex[T any] struct {
+	*rwarcmutex.RWArcMutex[T]
+}
+
 // OnceCell re-exports the OnceCell[T] type from the oncecell package for convenience.
 type OnceCell[T any] struct {
 	*oncecell.OnceCell[T]
@@ -77,6 +89,11 @@ func NewArc[T any](value T) *Arc[T] {
 // NewArcMutex creates a new ArcMutex[T] with the given value.
 func NewArcMutex[T any](value T) *ArcMutex[T] {
 	return &ArcMutex[T]{ArcMutex: arcmutex.NewArcMutex(value)}
+}
+
+// NewRWArcMutex creates a new RWArcMutex[T] with the given value.
+func NewRWArcMutex[T any](value T) *RWArcMutex[T] {
+	return &RWArcMutex[T]{RWArcMutex: rwarcmutex.NewRWArcMutex(value)}
 }
 
 // NewOnceCell creates a new OnceCell[T] for lazy initialization.

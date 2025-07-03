@@ -195,6 +195,66 @@ func TestCondVar(t *testing.T) {
 	require.Equal(t, int64(0), cv.RefCount())
 }
 
+// TestBarrier tests the Barrier functionality
+func TestBarrier(t *testing.T) {
+	// Test basic creation
+	b := NewBarrier(3)
+	require.NotNil(t, b)
+	require.Equal(t, int64(1), b.RefCount())
+
+	// Test cloning
+	clone := b.Clone()
+	require.Equal(t, int64(2), b.RefCount())
+
+	// Test basic synchronization
+	var results []bool
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			result := b.Wait()
+			mu.Lock()
+			results = append(results, result)
+			mu.Unlock()
+		}()
+	}
+
+	wg.Wait()
+	require.Len(t, results, 3)
+	for _, result := range results {
+		require.True(t, result)
+	}
+
+	// Test reset functionality
+	b.Reset(2)
+	var results2 []bool
+
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			result := b.Wait()
+			mu.Lock()
+			results2 = append(results2, result)
+			mu.Unlock()
+		}()
+	}
+
+	wg.Wait()
+	require.Len(t, results2, 2)
+	for _, result := range results2 {
+		require.True(t, result)
+	}
+
+	// Clean up
+	b.Drop()
+	clone.Drop()
+	require.Equal(t, int64(0), b.RefCount())
+}
+
 // Helper function to check if a string contains a substring
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr ||

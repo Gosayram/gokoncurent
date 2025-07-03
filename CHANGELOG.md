@@ -38,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Support for context cancellation and timeouts
   - Convenience functions `Notify()` and `NotifyBroadcast()`
   - Similar to `sync.Cond` but with Arc semantics
+- Barrier: Synchronization primitive for waiting for multiple goroutines
+  - Atomic reference counting with safe cleanup
+  - Support for barrier reset and multiple cycles
+  - Thread-safe coordination of N goroutines
 - Comprehensive Makefile with targets for:
   - Building and testing
   - Code quality checks (lint, staticcheck, security scan)

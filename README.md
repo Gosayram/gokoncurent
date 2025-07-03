@@ -55,6 +55,10 @@ func main() {
     go func() { cv.Wait(); fmt.Println("Signaled!") }()
     cv.Signal()
     
+    // Barrier - Synchronization for multiple goroutines
+    b := gokoncurent.NewBarrier(3)
+    go func() { b.Wait(); fmt.Println("All workers synchronized!") }()
+    
     // OnceCell[T] - Lazy initialization
     cell := gokoncurent.NewOnceCell[string]()
     cell.Set("initialized once")
@@ -89,17 +93,23 @@ GoKoncurent provides safe concurrency primitives organized in phases:
 - Support for context cancellation and timeouts
 - Convenience functions `Notify()` and `NotifyBroadcast()`
 
-### 📦 Phase 5: OnceCell[T] - Lazy Initialization
+### 📦 Phase 5: Barrier - Synchronization Primitive
+- Synchronization primitive for waiting for multiple goroutines
+- Atomic reference counting with safe cleanup
+- Support for barrier reset and multiple cycles
+- Thread-safe coordination of N goroutines
+
+### 📦 Phase 6: OnceCell[T] - Lazy Initialization
 - Rust-like OnceCell/Lazy equivalent
 - Uses `sync.Once` and `atomic.Pointer[T]` from Go 1.24
 - `Set(value T)` and `Get() (T, bool)` methods
 
-### 📦 Phase 6: SafeMap[K, V] - Concurrent Map Operations
+### 📦 Phase 7: SafeMap[K, V] - Concurrent Map Operations
 - Race-free map operations with `sync.RWMutex`
 - Utilizes `maps.Clone` from Go 1.24
 - Snapshot and iteration support without data races
 
-### 📦 Phase 7: TaskPool & Future[T] - Async Task Management
+### 📦 Phase 8: TaskPool & Future[T] - Async Task Management
 - Simplified API for managing N goroutines
 - `TaskPool.Run(ctx, func())` with context control
 - `Future[T]` for async result handling

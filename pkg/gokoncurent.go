@@ -11,6 +11,7 @@
 //   - ArcMutex[T]: Safe shared mutable state with controlled access
 //   - RWArcMutex[T]: Thread-safe read-write mutex for shared mutable state
 //   - CondVar: Conditional variables for goroutine coordination
+//   - Barrier: Synchronization primitive for waiting for multiple goroutines
 //   - OnceCell[T]: Thread-safe lazy initialization
 //   - SafeMap[K,V]: Concurrent map operations without data races
 //   - TaskPool & Future[T]: Structured async task management
@@ -40,6 +41,10 @@
 //	go func() { cv.Wait(); fmt.Println("Signaled!") }()
 //	cv.Signal()
 //
+//	// Barrier - Synchronization for multiple goroutines
+//	b := gokoncurent.NewBarrier(3)
+//	go func() { b.Wait(); fmt.Println("All workers synchronized!") }()
+//
 //	// OnceCell[T] - Lazy initialization
 //	cell := gokoncurent.NewOnceCell[string]()
 //	cell.Set("initialized once")
@@ -57,6 +62,7 @@ import (
 
 	"github.com/Gosayram/gokoncurent/pkg/arc"
 	"github.com/Gosayram/gokoncurent/pkg/arcmutex"
+	"github.com/Gosayram/gokoncurent/pkg/barrier"
 	"github.com/Gosayram/gokoncurent/pkg/condvar"
 	"github.com/Gosayram/gokoncurent/pkg/oncecell"
 	"github.com/Gosayram/gokoncurent/pkg/rwarcmutex"
@@ -88,6 +94,11 @@ type CondVar struct {
 	*condvar.CondVar
 }
 
+// Barrier re-exports the Barrier type from the barrier package for convenience.
+type Barrier struct {
+	*barrier.Barrier
+}
+
 // OnceCell re-exports the OnceCell[T] type from the oncecell package for convenience.
 type OnceCell[T any] struct {
 	*oncecell.OnceCell[T]
@@ -111,6 +122,11 @@ func NewRWArcMutex[T any](value T) *RWArcMutex[T] {
 // NewCondVar creates a new CondVar for goroutine coordination.
 func NewCondVar() *CondVar {
 	return &CondVar{CondVar: condvar.NewCondVar()}
+}
+
+// NewBarrier creates a new Barrier for synchronizing multiple goroutines.
+func NewBarrier(n int) *Barrier {
+	return &Barrier{Barrier: barrier.NewBarrier(n)}
 }
 
 // NewOnceCell creates a new OnceCell[T] for lazy initialization.

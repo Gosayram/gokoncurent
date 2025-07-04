@@ -527,13 +527,260 @@ func BenchmarkOnceCellConcurrentGet(b *testing.B) {
 }
 
 func BenchmarkOnceCellConcurrentGetOrInit(b *testing.B) {
+	cell := NewOnceCell[string]()
+
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			cell := NewOnceCell[int]()
-			cell.GetOrInit(func() int { return 42 })
+			cell.GetOrInit(func() string {
+				return "concurrent value"
+			})
 		}
 	})
+}
+
+func TestOnceCellResetWithCallback(t *testing.T) {
+	t.Run("callback with initialized cell", func(t *testing.T) {
+		cell := NewOnceCell[string]()
+		cell.Set("old value")
+
+		var callbackCalled bool
+		var callbackValue string
+
+		newCell := cell.ResetWithCallback(func(value string) {
+			callbackCalled = true
+			callbackValue = value
+		})
+
+		if !callbackCalled {
+			t.Error("Callback should be called for initialized cell")
+		}
+		if callbackValue != "old value" {
+			t.Errorf("Expected callback value 'old value', got '%s'", callbackValue)
+		}
+		if newCell == nil {
+			t.Error("ResetWithCallback should return new cell")
+		}
+		if newCell.IsInitialized() {
+			t.Error("New cell should not be initialized")
+		}
+		// Original cell should remain initialized (ResetWithCallback creates a new cell)
+		if !cell.IsInitialized() {
+			t.Error("Original cell should remain initialized")
+		}
+	})
+
+	t.Run("callback with uninitialized cell", func(t *testing.T) {
+		cell := NewOnceCell[string]()
+
+		var callbackCalled bool
+
+		newCell := cell.ResetWithCallback(func(value string) {
+			callbackCalled = true
+		})
+
+		if callbackCalled {
+			t.Error("Callback should not be called for uninitialized cell")
+		}
+		if newCell == nil {
+			t.Error("ResetWithCallback should return new cell")
+		}
+		if newCell.IsInitialized() {
+			t.Error("New cell should not be initialized")
+		}
+	})
+
+	t.Run("nil cell", func(t *testing.T) {
+		var nilCell *OnceCell[string]
+		var callbackCalled bool
+
+		newCell := nilCell.ResetWithCallback(func(value string) {
+			callbackCalled = true
+		})
+
+		if callbackCalled {
+			t.Error("Callback should not be called for nil cell")
+		}
+		if newCell == nil {
+			t.Error("ResetWithCallback should return new cell even for nil input")
+		}
+	})
+}
+
+func TestOnceCellGetOrInitWithRetry(t *testing.T) {
+	t.Run("successful initialization", func(t *testing.T) {
+		cell := NewOnceCell[string]()
+
+		value, err := cell.GetOrInitWithRetry(func() (string, error) {
+			return "success", nil
+		}, 3, 10*time.Millisecond)
+
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+		if value != "success" {
+			t.Errorf("Expected 'success', got '%s'", value)
+		}
+		if !cell.IsInitialized() {
+			t.Error("Cell should be initialized after successful GetOrInitWithRetry")
+		}
+	})
+
+	t.Run("retry with eventual success", func(t *testing.T) {
+		cell := NewOnceCell[string]()
+		attempts := 0
+
+		value, err := cell.GetOrInitWithRetry(func() (string, error) {
+			attempts++
+			if attempts < 3 {
+				return "", fmt.Errorf("temporary failure %d", attempts)
+			}
+			return "success after retry", nil
+		}, 3, 10*time.Millisecond)
+
+		if err != nil {
+			t.Errorf("Expected no error after retry, got %v", err)
+		}
+		if value != "success after retry" {
+			t.Errorf("Expected 'success after retry', got '%s'", value)
+		}
+		if attempts != 3 {
+			t.Errorf("Expected 3 attempts, got %d", attempts)
+		}
+	})
+
+	t.Run("all retries fail", func(t *testing.T) {
+		cell := NewOnceCell[string]()
+
+		value, err := cell.GetOrInitWithRetry(func() (string, error) {
+			return "", fmt.Errorf("permanent failure")
+		}, 2, 10*time.Millisecond)
+
+		if err == nil {
+			t.Fatal("Expected error after all retries failed")
+		}
+		if err.Error() != "permanent failure" {
+			t.Errorf("Expected 'permanent failure', got '%v'", err)
+		}
+		// Value should be empty (zero value) after failed retries
+		if value != "" {
+			t.Errorf("Expected empty value, got '%s'", value)
+		}
+		// Cell should be initialized even after failed retries
+		if !cell.IsInitialized() {
+			t.Error("Cell should be initialized even after failed retries")
+		}
+	})
+
+	t.Run("zero retries", func(t *testing.T) {
+		cell := NewOnceCell[string]()
+
+		value, err := cell.GetOrInitWithRetry(func() (string, error) {
+			return "", fmt.Errorf("failure")
+		}, 0, 10*time.Millisecond)
+
+		if err == nil {
+			t.Fatal("Expected error with zero retries")
+		}
+		if value != "" {
+			t.Errorf("Expected empty value, got '%s'", value)
+		}
+	})
+
+	t.Run("already initialized", func(t *testing.T) {
+		cell := NewOnceCell[string]()
+		cell.Set("existing")
+
+		var initCalled bool
+		value, err := cell.GetOrInitWithRetry(func() (string, error) {
+			initCalled = true
+			return "new", nil
+		}, 3, 10*time.Millisecond)
+
+		if initCalled {
+			t.Error("Init function should not be called for already initialized cell")
+		}
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+		if value != "existing" {
+			t.Errorf("Expected 'existing', got '%s'", value)
+		}
+	})
+
+	t.Run("nil cell", func(t *testing.T) {
+		var nilCell *OnceCell[string]
+
+		value, err := nilCell.GetOrInitWithRetry(func() (string, error) {
+			return "test", nil
+		}, 3, 10*time.Millisecond)
+
+		if err != nil {
+			t.Errorf("Expected no error for nil cell, got %v", err)
+		}
+		if value != "" {
+			t.Errorf("Expected empty value for nil cell, got '%s'", value)
+		}
+	})
+
+	t.Run("concurrent access", func(t *testing.T) {
+		cell := NewOnceCell[string]()
+		const numGoroutines = 10
+		var wg sync.WaitGroup
+		results := make([]string, numGoroutines)
+		errors := make([]error, numGoroutines)
+
+		wg.Add(numGoroutines)
+		for i := 0; i < numGoroutines; i++ {
+			go func(id int) {
+				defer wg.Done()
+				value, err := cell.GetOrInitWithRetry(func() (string, error) {
+					time.Sleep(1 * time.Millisecond) // Simulate work
+					return fmt.Sprintf("value-%d", id), nil
+				}, 1, 5*time.Millisecond)
+				results[id] = value
+				errors[id] = err
+			}(i)
+		}
+
+		wg.Wait()
+
+		// All should get the same value (first one to succeed)
+		firstValue := results[0]
+		for i := 1; i < numGoroutines; i++ {
+			if results[i] != firstValue {
+				t.Errorf("Expected all goroutines to get same value, got %s and %s", firstValue, results[i])
+			}
+			if errors[i] != nil {
+				t.Errorf("Expected no error for goroutine %d, got %v", i, errors[i])
+			}
+		}
+	})
+}
+
+func BenchmarkOnceCellResetWithCallback(b *testing.B) {
+	cell := NewOnceCell[string]()
+	cell.Set("test value")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cell.ResetWithCallback(func(value string) {
+			// Callback operation
+		})
+	}
+}
+
+func BenchmarkOnceCellGetOrInitWithRetry(b *testing.B) {
+	cell := NewOnceCell[string]()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := cell.GetOrInitWithRetry(func() (string, error) {
+			return "success", nil
+		}, 0, 1*time.Millisecond); err != nil {
+			b.Fatal(err)
+		}
+	}
 }
 
 // Example tests for documentation

@@ -211,8 +211,8 @@ func (am *ArcMutex[T]) TryLock(timeout time.Duration, fn func(*T)) bool {
 	}
 	if timeout <= 0 {
 		if innerData.mu.TryLock() {
-			defer innerData.mu.Unlock()
 			fn(&innerData.data)
+			innerData.mu.Unlock()
 			return true
 		}
 		return false
@@ -220,8 +220,8 @@ func (am *ArcMutex[T]) TryLock(timeout time.Duration, fn func(*T)) bool {
 	deadline := time.Now().Add(timeout)
 	for {
 		if innerData.mu.TryLock() {
-			defer innerData.mu.Unlock()
 			fn(&innerData.data)
+			innerData.mu.Unlock()
 			return true
 		}
 		if time.Now().After(deadline) {

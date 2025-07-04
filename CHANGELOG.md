@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ArcMutex[T]:
   - Fixed race in TryLock tests by synchronizing goroutine exit and main thread
   - All tests are now robust and race-free, comments and docs in English
+  - Removed defer inside loop in TryLock (gocritic deferInLoop)
+  - Fixed race in TryLock tests (synchronized goroutine exit)
+- OnceCell[T]:
+  - Correct error handling in GetOrInitWithRetry (returns lastErr on failure)
+  - Long signature wrapped to satisfy lll lint rule
+  - Benchmark updated to handle error (errcheck)
 
 ### Changed
 - Cleaned up project structure by removing unused empty directories (docs/, internal/, testdata/)
@@ -54,6 +60,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ArcMutex[T]:
   - TryLock: attempt to acquire mutex with timeout (race-free, polling, no goroutine)
   - IsLocked: best-effort check if mutex is currently locked (for debugging/metrics)
+- OnceCell[T]:
+  - ResetWithCallback: reset cell and invoke callback with old value (cleanup/logging)
+  - GetOrInitWithRetry: lazy initialization with retry and exponential backoff
 - Comprehensive Makefile with targets for:
   - Building and testing
   - Code quality checks (lint, staticcheck, security scan)

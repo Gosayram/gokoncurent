@@ -6,6 +6,7 @@ package oncecell
 import (
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // OnceCell represents a thread-safe cell that can be written to only once,
@@ -191,4 +192,91 @@ func (oc *OnceCell[T]) TryGet() (T, bool) {
 //	// newCell is empty and can be initialized again
 func (oc *OnceCell[T]) Reset() *OnceCell[T] {
 	return NewOnceCell[T]()
+}
+
+// ResetWithCallback creates a new OnceCell[T] and calls the provided callback
+// with the old value (if it was initialized). This allows for cleanup or
+// logging when resetting a cell.
+//
+// Example:
+//
+//	cell := NewOnceCell[string]()
+//	cell.Set("old value")
+//	newCell := cell.ResetWithCallback(func(oldValue string) {
+//	    fmt.Println("Resetting cell with value:", oldValue)
+//	})
+//	// newCell is empty and can be initialized again
+func (oc *OnceCell[T]) ResetWithCallback(callback func(T)) *OnceCell[T] {
+	if oc == nil {
+		return NewOnceCell[T]()
+	}
+
+	if value, ok := oc.Get(); ok {
+		callback(value)
+	}
+
+	return NewOnceCell[T]()
+}
+
+// GetOrInitWithRetry attempts to initialize the cell with retry logic and backoff.
+// If the initialization function returns an error, it will retry up to maxRetries times
+// with exponential backoff starting from initialBackoff.
+//
+// The retry strategy uses exponential backoff: initialBackoff, 2*initialBackoff, 4*initialBackoff, etc.
+// If maxRetries is 0, no retries are performed.
+//
+// Example:
+//
+//	cell := NewOnceCell[string]()
+//	value, err := cell.GetOrInitWithRetry(func() (string, error) {
+//	    // Simulate network call that might fail
+//	    if rand.Float64() < 0.5 {
+//	        return "", errors.New("temporary failure")
+//	    }
+//	    return "success", nil
+//	}, 3, 100*time.Millisecond)
+func (oc *OnceCell[T]) GetOrInitWithRetry(
+	init func() (T, error),
+	maxRetries int,
+	initialBackoff time.Duration,
+) (T, error) {
+	if oc == nil {
+		var zero T
+		return zero, nil
+	}
+
+	// Fast path: check if already initialized
+	if ptr := oc.value.Load(); ptr != nil {
+		return *ptr, nil
+	}
+
+	// Slow path: initialize with retry
+	var result T
+	var lastErr error
+	oc.once.Do(func() {
+		backoff := initialBackoff
+		for attempt := 0; attempt <= maxRetries; attempt++ {
+			value, err := init()
+			if err == nil {
+				result = value
+				oc.value.Store(&result)
+				lastErr = nil // clear error on success
+				return
+			}
+			lastErr = err
+			if attempt < maxRetries {
+				time.Sleep(backoff)
+				backoff *= 2 // Exponential backoff
+			}
+		}
+		// If all retries failed, store zero value (result) but keep lastErr
+		oc.value.Store(&result)
+	})
+
+	ptr := oc.value.Load()
+	if ptr == nil {
+		var zero T
+		return zero, lastErr
+	}
+	return *ptr, lastErr
 }

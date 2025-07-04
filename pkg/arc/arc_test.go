@@ -354,7 +354,9 @@ func BenchmarkArcGet(b *testing.B) {
 }
 
 func BenchmarkArcConcurrentClone(b *testing.B) {
-	arc := NewArc("concurrent benchmark")
+	arc := NewArc("test")
+	defer arc.Drop()
+
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
@@ -383,4 +385,228 @@ func ExampleArc_Clone() {
 	// 42
 	// 42
 	// 2
+}
+
+func TestNewFromPointer(t *testing.T) {
+	t.Run("valid pointer", func(t *testing.T) {
+		data := &struct{ Value string }{Value: "test"}
+		arc := NewFromPointer(data)
+		defer arc.Drop()
+
+		if arc == nil {
+			t.Fatal("NewFromPointer should not return nil for valid pointer")
+		}
+		if arc.Get() != data {
+			t.Error("NewFromPointer should return Arc pointing to the same data")
+		}
+		if arc.RefCount() != 1 {
+			t.Errorf("Expected reference count 1, got %d", arc.RefCount())
+		}
+	})
+
+	t.Run("nil pointer", func(t *testing.T) {
+		arc := NewFromPointer[string](nil)
+		if arc != nil {
+			t.Error("NewFromPointer should return nil for nil pointer")
+		}
+	})
+
+	t.Run("struct pointer", func(t *testing.T) {
+		type TestStruct struct {
+			Name string
+			Age  int
+		}
+		data := &TestStruct{Name: "Alice", Age: 30}
+		arc := NewFromPointer(data)
+		defer arc.Drop()
+
+		retrieved := arc.Get()
+		if retrieved.Name != "Alice" || retrieved.Age != 30 {
+			t.Errorf("Expected {Alice 30}, got %+v", *retrieved)
+		}
+	})
+}
+
+func TestCloneMany(t *testing.T) {
+	t.Run("clone multiple", func(t *testing.T) {
+		original := NewArc("shared data")
+		defer original.Drop()
+
+		clones := original.CloneMany(3)
+		if len(clones) != 3 {
+			t.Errorf("Expected 3 clones, got %d", len(clones))
+		}
+
+		if original.RefCount() != 4 {
+			t.Errorf("Expected reference count 4, got %d", original.RefCount())
+		}
+
+		// Verify all clones point to the same data
+		for i, clone := range clones {
+			if clone.Get() != original.Get() {
+				t.Errorf("Clone %d should point to the same data", i)
+			}
+			if clone.RefCount() != 4 {
+				t.Errorf("Clone %d should have reference count 4, got %d", i, clone.RefCount())
+			}
+		}
+
+		// Drop all clones
+		for _, clone := range clones {
+			clone.Drop()
+		}
+
+		if original.RefCount() != 1 {
+			t.Errorf("Expected reference count 1 after dropping clones, got %d", original.RefCount())
+		}
+	})
+
+	t.Run("clone zero count", func(t *testing.T) {
+		original := NewArc("test")
+		defer original.Drop()
+
+		clones := original.CloneMany(0)
+		if clones != nil {
+			t.Error("CloneMany(0) should return nil")
+		}
+		if original.RefCount() != 1 {
+			t.Errorf("Reference count should remain 1, got %d", original.RefCount())
+		}
+	})
+
+	t.Run("clone negative count", func(t *testing.T) {
+		original := NewArc("test")
+		defer original.Drop()
+
+		clones := original.CloneMany(-1)
+		if clones != nil {
+			t.Error("CloneMany(-1) should return nil")
+		}
+		if original.RefCount() != 1 {
+			t.Errorf("Reference count should remain 1, got %d", original.RefCount())
+		}
+	})
+
+	t.Run("clone from nil", func(t *testing.T) {
+		var nilArc *Arc[string]
+		clones := nilArc.CloneMany(3)
+		if clones != nil {
+			t.Error("CloneMany on nil Arc should return nil")
+		}
+	})
+}
+
+func TestEqual(t *testing.T) {
+	t.Run("same arc", func(t *testing.T) {
+		arc1 := NewArc("hello")
+		defer arc1.Drop()
+		arc2 := arc1.Clone()
+		defer arc2.Drop()
+
+		if !arc1.Equal(arc2) {
+			t.Error("Arc should be equal to its clone")
+		}
+		if !arc2.Equal(arc1) {
+			t.Error("Clone should be equal to original Arc")
+		}
+	})
+
+	t.Run("different arcs with same value", func(t *testing.T) {
+		arc1 := NewArc("hello")
+		defer arc1.Drop()
+		arc2 := NewArc("hello")
+		defer arc2.Drop()
+
+		if arc1.Equal(arc2) {
+			t.Error("Different Arcs with same value should not be equal")
+		}
+		if arc2.Equal(arc1) {
+			t.Error("Different Arcs with same value should not be equal")
+		}
+	})
+
+	t.Run("nil comparison", func(t *testing.T) {
+		var nilArc1, nilArc2 *Arc[string]
+		arc := NewArc("test")
+		defer arc.Drop()
+
+		if !nilArc1.Equal(nilArc2) {
+			t.Error("Nil Arcs should be equal")
+		}
+		if nilArc1.Equal(arc) {
+			t.Error("Nil Arc should not be equal to non-nil Arc")
+		}
+		if arc.Equal(nilArc1) {
+			t.Error("Non-nil Arc should not be equal to nil Arc")
+		}
+	})
+
+	t.Run("self comparison", func(t *testing.T) {
+		arc := NewArc("test")
+		defer arc.Drop()
+
+		if !arc.Equal(arc) {
+			t.Error("Arc should be equal to itself")
+		}
+	})
+}
+
+func TestString(t *testing.T) {
+	t.Run("valid arc", func(t *testing.T) {
+		arc := NewArc("test")
+		defer arc.Drop()
+
+		str := arc.String()
+		expected := "Arc{refCount: 1}"
+		if str != expected {
+			t.Errorf("Expected '%s', got '%s'", expected, str)
+		}
+	})
+
+	t.Run("nil arc", func(t *testing.T) {
+		var nilArc *Arc[string]
+		str := nilArc.String()
+		expected := "Arc<nil>"
+		if str != expected {
+			t.Errorf("Expected '%s', got '%s'", expected, str)
+		}
+	})
+
+	t.Run("multiple references", func(t *testing.T) {
+		arc := NewArc("test")
+		clone := arc.Clone()
+		defer arc.Drop()
+		defer clone.Drop()
+
+		str := arc.String()
+		expected := "Arc{refCount: 2}"
+		if str != expected {
+			t.Errorf("Expected '%s', got '%s'", expected, str)
+		}
+	})
+}
+
+func BenchmarkCloneMany(b *testing.B) {
+	arc := NewArc("test")
+	defer arc.Drop()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		clones := arc.CloneMany(10)
+		for _, clone := range clones {
+			clone.Drop()
+		}
+	}
+}
+
+func BenchmarkEqual(b *testing.B) {
+	arc1 := NewArc("test")
+	arc2 := arc1.Clone()
+	defer arc1.Drop()
+	defer arc2.Drop()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		arc1.Equal(arc2)
+	}
 }

@@ -43,6 +43,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Atomic reference counting with safe cleanup
   - Support for barrier reset and multiple cycles
   - Thread-safe coordination of N goroutines
+- Arc[T]:
+  - NewFromPointer: create Arc from existing pointer
+  - CloneMany: efficient cloning of multiple references
+  - Equal: pointer equality check for Arc
+  - String: implements fmt.Stringer for debug output
 - Comprehensive Makefile with targets for:
   - Building and testing
   - Code quality checks (lint, staticcheck, security scan)

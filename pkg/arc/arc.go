@@ -4,6 +4,7 @@
 package arc
 
 import (
+	"fmt"
 	"sync/atomic"
 )
 
@@ -31,6 +32,29 @@ func NewArc[T any](value T) *Arc[T] {
 
 	return &Arc[T]{
 		data:     &value,
+		refCount: refCount,
+	}
+}
+
+// NewFromPointer creates a new Arc[T] from an existing pointer.
+// The caller is responsible for ensuring the pointer is valid and not shared.
+// The returned Arc[T] has a reference count of 1.
+//
+// Example:
+//
+//	data := &MyStruct{Field: "value"}
+//	arc := NewFromPointer(data)
+//	defer arc.Drop()
+func NewFromPointer[T any](ptr *T) *Arc[T] {
+	if ptr == nil {
+		return nil
+	}
+
+	refCount := &atomic.Int64{}
+	refCount.Store(1)
+
+	return &Arc[T]{
+		data:     ptr,
 		refCount: refCount,
 	}
 }
@@ -63,6 +87,40 @@ func (a *Arc[T]) Clone() *Arc[T] {
 		data:     a.data,
 		refCount: a.refCount,
 	}
+}
+
+// CloneMany creates multiple clones of the Arc[T] at once.
+// This is more efficient than calling Clone() multiple times
+// as it only increments the reference count once.
+//
+// Example:
+//
+//	original := NewArc("shared data")
+//	clones := original.CloneMany(3)
+//	// Reference count is now 4 (original + 3 clones)
+func (a *Arc[T]) CloneMany(count int) []*Arc[T] {
+	if a == nil || count <= 0 {
+		return nil
+	}
+
+	// Increment reference count by count atomically
+	newCount := a.refCount.Add(int64(count))
+	if newCount <= int64(count) {
+		// This should never happen in normal usage
+		// but we handle it gracefully
+		a.refCount.Add(-int64(count))
+		return nil
+	}
+
+	clones := make([]*Arc[T], count)
+	for i := 0; i < count; i++ {
+		clones[i] = &Arc[T]{
+			data:     a.data,
+			refCount: a.refCount,
+		}
+	}
+
+	return clones
 }
 
 // Get returns a pointer to the underlying data.
@@ -123,4 +181,35 @@ func (a *Arc[T]) Drop() bool {
 // and this was the last reference.
 func (a *Arc[T]) IsValid() bool {
 	return a != nil && a.data != nil && a.refCount != nil && a.refCount.Load() > 0
+}
+
+// Equal returns true if two Arc[T] instances point to the same underlying data.
+// This is a pointer comparison, not a value comparison.
+//
+// Example:
+//
+//	arc1 := NewArc("hello")
+//	arc2 := arc1.Clone()
+//	arc3 := NewArc("hello")
+//	arc1.Equal(arc2) // true (same data)
+//	arc1.Equal(arc3) // false (different data)
+func (a *Arc[T]) Equal(other *Arc[T]) bool {
+	if a == nil || other == nil {
+		return a == other
+	}
+	return a.data == other.data
+}
+
+// String implements fmt.Stringer interface.
+// Returns a string representation of the Arc[T] including the reference count.
+//
+// Example:
+//
+//	arc := NewArc("hello")
+//	fmt.Println(arc) // "Arc{refCount: 1}"
+func (a *Arc[T]) String() string {
+	if a == nil {
+		return "Arc<nil>"
+	}
+	return fmt.Sprintf("Arc{refCount: %d}", a.RefCount())
 }

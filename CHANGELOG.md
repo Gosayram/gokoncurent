@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed possible negative refCount in CondVar.Drop (now atomic and never goes below zero)
 - Optimized CondVar stress and concurrent tests for speed and reliability
 - Enhanced errcheck configuration with comprehensive exclusions for sync operations, time functions, and atomic operations
+- ArcMutex[T]:
+  - Fixed race in TryLock tests by synchronizing goroutine exit and main thread
+  - All tests are now robust and race-free, comments and docs in English
 
 ### Changed
 - Cleaned up project structure by removing unused empty directories (docs/, internal/, testdata/)
@@ -48,6 +51,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - CloneMany: efficient cloning of multiple references
   - Equal: pointer equality check for Arc
   - String: implements fmt.Stringer for debug output
+- ArcMutex[T]:
+  - TryLock: attempt to acquire mutex with timeout (race-free, polling, no goroutine)
+  - IsLocked: best-effort check if mutex is currently locked (for debugging/metrics)
 - Comprehensive Makefile with targets for:
   - Building and testing
   - Code quality checks (lint, staticcheck, security scan)

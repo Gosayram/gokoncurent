@@ -5,6 +5,7 @@ package arcmutex
 
 import (
 	"sync"
+	"time"
 
 	"github.com/Gosayram/gokoncurent/pkg/arc"
 )
@@ -189,4 +190,61 @@ func (am *ArcMutex[T]) Drop() bool {
 		return false
 	}
 	return am.inner.Drop()
+}
+
+// TryLock attempts to acquire the mutex and execute the provided function within the specified timeout.
+// If timeout <= 0, behaves like TryWithLock (non-blocking).
+// Returns true if lock was acquired and function executed, false otherwise.
+//
+// Example:
+//
+//	counter := NewArcMutex(0)
+//	ok := counter.TryLock(10*time.Millisecond, func(val *int) { *val += 1 })
+//	if ok { ... }
+func (am *ArcMutex[T]) TryLock(timeout time.Duration, fn func(*T)) bool {
+	if am == nil || am.inner == nil || fn == nil {
+		return false
+	}
+	innerData := am.inner.Get()
+	if innerData == nil {
+		return false
+	}
+	if timeout <= 0 {
+		if innerData.mu.TryLock() {
+			defer innerData.mu.Unlock()
+			fn(&innerData.data)
+			return true
+		}
+		return false
+	}
+	deadline := time.Now().Add(timeout)
+	for {
+		if innerData.mu.TryLock() {
+			defer innerData.mu.Unlock()
+			fn(&innerData.data)
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(1 * time.Millisecond)
+	}
+}
+
+// IsLocked returns true if the mutex is currently locked by any goroutine.
+// This is a best-effort check and should only be used for debugging or metrics.
+// It is not race-free and may be inaccurate in highly concurrent scenarios.
+func (am *ArcMutex[T]) IsLocked() bool {
+	if am == nil || am.inner == nil {
+		return false
+	}
+	innerData := am.inner.Get()
+	if innerData == nil {
+		return false
+	}
+	if innerData.mu.TryLock() {
+		innerData.mu.Unlock()
+		return false
+	}
+	return true
 }

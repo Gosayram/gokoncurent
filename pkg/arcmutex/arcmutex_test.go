@@ -466,6 +466,8 @@ func BenchmarkArcMutexTryWithLock(b *testing.B) {
 
 func BenchmarkArcMutexConcurrent(b *testing.B) {
 	am := NewArcMutex(0)
+	defer am.Drop()
+
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
@@ -474,6 +476,251 @@ func BenchmarkArcMutexConcurrent(b *testing.B) {
 			})
 		}
 	})
+}
+
+func TestArcMutexTryLock(t *testing.T) {
+	t.Run("zero timeout behaves like TryWithLock", func(t *testing.T) {
+		am := NewArcMutex(0)
+
+		success := am.TryLock(0, func(value *int) {
+			*value = 42
+		})
+
+		if !success {
+			t.Error("TryLock with zero timeout should succeed when mutex is available")
+		}
+
+		var result int
+		am.WithLock(func(value *int) {
+			result = *value
+		})
+
+		if result != 42 {
+			t.Errorf("Expected 42, got %d", result)
+		}
+	})
+
+	t.Run("negative timeout behaves like TryWithLock", func(t *testing.T) {
+		am := NewArcMutex(0)
+
+		success := am.TryLock(-1*time.Second, func(value *int) {
+			*value = 100
+		})
+
+		if !success {
+			t.Error("TryLock with negative timeout should succeed when mutex is available")
+		}
+
+		var result int
+		am.WithLock(func(value *int) {
+			result = *value
+		})
+
+		if result != 100 {
+			t.Errorf("Expected 100, got %d", result)
+		}
+	})
+
+	t.Run("timeout when mutex is held", func(t *testing.T) {
+		am := NewArcMutex(0)
+
+		// Hold lock in goroutine
+		lockHeld := make(chan struct{})
+		canRelease := make(chan struct{})
+
+		go func() {
+			am.WithLock(func(value *int) {
+				close(lockHeld)
+				<-canRelease
+			})
+		}()
+
+		// Wait for lock to be held
+		<-lockHeld
+
+		// Try to acquire lock with timeout (should fail)
+		start := time.Now()
+		success := am.TryLock(50*time.Millisecond, func(value *int) {
+			*value = 999
+		})
+		duration := time.Since(start)
+
+		if success {
+			t.Error("TryLock should fail when mutex is held")
+		}
+
+		if duration < 40*time.Millisecond {
+			t.Errorf("TryLock should wait for timeout, got %v", duration)
+		}
+
+		// Release the lock
+		close(canRelease)
+	})
+
+	t.Run("successful lock within timeout", func(t *testing.T) {
+		am := NewArcMutex(0)
+
+		// Hold lock briefly
+		lockHeld := make(chan struct{})
+		canRelease := make(chan struct{})
+		done := make(chan struct{})
+
+		go func() {
+			am.WithLock(func(value *int) {
+				close(lockHeld)
+				time.Sleep(10 * time.Millisecond)
+				<-canRelease
+			})
+			close(done)
+		}()
+
+		// Wait for lock to be held
+		<-lockHeld
+
+		// Release the lock
+		close(canRelease)
+		// Wait until the goroutine has exited and mutex is definitely released
+		<-done
+
+		// Now TryLock should succeed quickly (race-free, robust)
+		var ok bool
+		deadline := time.Now().Add(100 * time.Millisecond)
+		for {
+			ok = am.TryLock(0, func(value *int) {
+				*value = 42
+			})
+			if ok || time.Now().After(deadline) {
+				break
+			}
+			time.Sleep(1 * time.Millisecond)
+		}
+
+		if !ok {
+			t.Error("TryLock should succeed when mutex becomes available within timeout")
+		}
+
+		var result int
+		am.WithLock(func(value *int) {
+			result = *value
+		})
+		if result != 42 {
+			t.Errorf("Expected 42, got %d", result)
+		}
+	})
+
+	t.Run("nil function", func(t *testing.T) {
+		am := NewArcMutex(42)
+		success := am.TryLock(10*time.Millisecond, nil)
+		if success {
+			t.Error("TryLock with nil function should return false")
+		}
+	})
+
+	t.Run("nil ArcMutex", func(t *testing.T) {
+		var nilAM *ArcMutex[int]
+		success := nilAM.TryLock(10*time.Millisecond, func(value *int) {
+			*value = 100
+		})
+		if success {
+			t.Error("TryLock on nil ArcMutex should return false")
+		}
+	})
+}
+
+func TestArcMutexIsLocked(t *testing.T) {
+	t.Run("unlocked mutex", func(t *testing.T) {
+		am := NewArcMutex(42)
+		if am.IsLocked() {
+			t.Error("IsLocked should return false for unlocked mutex")
+		}
+	})
+
+	t.Run("locked mutex", func(t *testing.T) {
+		am := NewArcMutex(42)
+
+		// Hold lock in goroutine
+		lockHeld := make(chan struct{})
+		canRelease := make(chan struct{})
+
+		go func() {
+			am.WithLock(func(value *int) {
+				close(lockHeld)
+				<-canRelease
+			})
+		}()
+
+		// Wait for lock to be held
+		<-lockHeld
+
+		if !am.IsLocked() {
+			t.Error("IsLocked should return true for locked mutex")
+		}
+
+		// Release the lock
+		close(canRelease)
+	})
+
+	t.Run("nil ArcMutex", func(t *testing.T) {
+		var nilAM *ArcMutex[int]
+		if nilAM.IsLocked() {
+			t.Error("IsLocked on nil ArcMutex should return false")
+		}
+	})
+
+	t.Run("concurrent access", func(t *testing.T) {
+		am := NewArcMutex(0)
+		var wg sync.WaitGroup
+		iterations := 1000
+
+		// Start multiple goroutines that check IsLocked
+		for i := 0; i < 10; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for j := 0; j < iterations; j++ {
+					am.IsLocked() // Should not panic
+				}
+			}()
+		}
+
+		// Start goroutines that hold the lock
+		for i := 0; i < 5; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for j := 0; j < iterations/10; j++ {
+					am.WithLock(func(value *int) {
+						*value++
+						time.Sleep(time.Microsecond)
+					})
+				}
+			}()
+		}
+
+		wg.Wait()
+	})
+}
+
+func BenchmarkArcMutexTryLock(b *testing.B) {
+	am := NewArcMutex(0)
+	defer am.Drop()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		am.TryLock(0, func(value *int) {
+			*value++
+		})
+	}
+}
+
+func BenchmarkArcMutexIsLocked(b *testing.B) {
+	am := NewArcMutex(0)
+	defer am.Drop()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		am.IsLocked()
+	}
 }
 
 // Example tests for documentation

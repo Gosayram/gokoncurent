@@ -137,7 +137,14 @@ Full API documentation is available at [GoDoc](https://godoc.org/github.com/Gosa
 
 ### Examples
 
-See the [examples](examples/) directory for comprehensive usage examples.
+See the [examples](examples/) directory for comprehensive usage examples, including:
+
+* `basic/` – minimal one-file examples for each primitive
+* `advanced_usage.go` – full demonstration combining all primitives
+* `advanced/map_slice_example` – safe concurrent manipulation of maps & slices with `ArcMutex`
+* `advanced/oncecell_error_example` – robust error handling with `OnceCell` retries
+
+> Tip: run `go test -race ./...` to execute the **stress-test suite** we added in vNext. It exercises every primitive under heavy concurrency to guarantee race-free operation.
 
 ## Contributing
 

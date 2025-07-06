@@ -74,6 +74,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Security scanning and vulnerability checking
 - Software Bill of Materials (SBOM) generation
 - Matrix testing support for multiple Go versions
+- **Stress Test Suite**: High-concurrency race-condition tests for all primitives (`Arc`, `ArcMutex`, `RWArcMutex`, `OnceCell`, `Barrier`, `CondVar`) ensuring race-free operation under `go test -race`.
+- **Advanced Examples**:
+  - `advanced/map_slice_example`: Safe concurrent manipulation of `map[string][]int` using `ArcMutex`.
+  - `advanced/oncecell_error_example`: Robust error-handling pattern with `OnceCell.GetOrInitWithRetry` and exponential back-off.
 
 ## [0.1.0] - 2025-01-04
 

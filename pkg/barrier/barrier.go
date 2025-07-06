@@ -16,6 +16,7 @@ type Barrier struct {
 	waiting  int
 	refCount atomic.Int64
 	broken   bool
+	gen      int // generation counter to distinguish cycles
 }
 
 // NewBarrier creates a new Barrier for n participants.
@@ -26,6 +27,7 @@ func NewBarrier(n int) *Barrier {
 	b := &Barrier{count: n}
 	b.cond = sync.NewCond(&b.mu)
 	b.refCount.Store(1)
+	b.gen = 0
 	return b
 }
 
@@ -67,13 +69,20 @@ func (b *Barrier) Wait() bool {
 	if b.broken {
 		return false
 	}
+
+	// Remember current generation.
+	myGen := b.gen
+
 	b.waiting++
 	if b.waiting == b.count {
-		b.waiting = 0
-		b.cond.Broadcast()
+		// Last goroutine for this generation.
+		b.gen++            // advance generation
+		b.waiting = 0      // reset for next cycle
+		b.cond.Broadcast() // wake up all waiters
 		return true
 	}
-	for !b.broken && b.waiting != 0 {
+
+	for !b.broken && myGen == b.gen {
 		b.cond.Wait()
 	}
 	return !b.broken

@@ -20,6 +20,31 @@ This example demonstrates:
 4. Lazy cache with thread-safe updates
 5. Performance characteristics of lock-free operations
 
+### map_slice_example
+
+Demonstrates safe concurrent usage of `ArcMutex[map[string][]int]` where multiple
+workers append random integers to slices stored in a shared map.  Highlights how
+`WithLock` can guard complex data structures like maps and slices without data
+races.
+
+Run with:
+```bash
+cd examples/advanced/map_slice_example
+go run .
+```
+
+### oncecell_error_example
+
+Shows robust error-handling with `OnceCell[T]` using `GetOrInitWithRetry`.  The
+example simulates an unreliable initialisation function that may fail a few
+times before succeeding, illustrating retry and exponential back-off patterns.
+
+Run with:
+```bash
+cd examples/advanced/oncecell_error_example
+go run .
+```
+
 ## Running Examples
 
 ### Option 1: Using Go Modules (Recommended)
